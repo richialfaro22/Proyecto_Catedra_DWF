@@ -21,13 +21,17 @@ public class JwtService {
     @Value("${jwt.expiration}")
     private long expiration;
 
+    public long getExpiration() {
+        return expiration;
+    }
+
     private SecretKey key() {
         return Keys.hmacShaKeyFor(Decoders.BASE64.decode(secret));
     }
 
     public String generarToken(Usuario u) {
         return Jwts.builder()
-                .subject(u.getUsername())
+                .subject(u.getAlias())
                 .claim("rol", u.getRol().name())
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + expiration))

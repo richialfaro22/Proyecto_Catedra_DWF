@@ -16,12 +16,12 @@ public class UserDetailsServiceImpl implements UserDetailsService {
     private final UsuarioRepository repo;
 
     @Override
-    public UserDetails loadUserByUsername(String username) {
-        Usuario u = repo.findByUsername(username)
+    public UserDetails loadUserByUsername(String aliasOEmail) {
+        Usuario u = repo.buscarPorAliasOEmail(aliasOEmail.trim())
                 .orElseThrow(() -> new UsernameNotFoundException("Usuario no encontrado"));
         return User.builder()
-                .username(u.getUsername())
-                .password(u.getPassword())
+                .username(u.getAlias())
+                .password(u.getContrasena())
                 .roles(u.getRol().name())
                 .disabled(!u.isActivo())
                 .build();

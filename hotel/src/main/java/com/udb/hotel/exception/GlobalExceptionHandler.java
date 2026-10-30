@@ -11,6 +11,9 @@ import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
@@ -33,10 +36,53 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
-    public ResponseEntity<ErrorResponse> cuerpoInvalido(HttpServletRequest req) {
+    public ResponseEntity<ErrorResponse> cuerpoInvalido(HttpMessageNotReadableException ex,
+                                                        HttpServletRequest req) {
+        String detalle = String.valueOf(ex.getMostSpecificCause().getMessage());
+        String mensaje = "No pudimos leer los datos enviados. Verifica que el formato y los tipos de dato sean correctos.";
+        if (detalle.contains("LocalDate")) {
+            mensaje = "Una de las fechas no tiene un formato válido. Usa el formato AAAA-MM-DD.";
+        } else if (detalle.contains("not one of the values accepted") || detalle.contains("Enum")) {
+            mensaje = "Uno de los valores seleccionados no es válido. Elige una opción de la lista.";
+        } else if (detalle.contains("Integer") || detalle.contains("Long")
+                || detalle.contains("BigDecimal") || detalle.contains("numeric")) {
+            mensaje = "Uno de los campos numéricos contiene texto o un valor no válido. Ingresa solo números.";
+        } else if (detalle.contains("Required request body is missing")) {
+            mensaje = "Debes enviar los datos solicitados en el cuerpo de la petición.";
+        }
+        return construir(HttpStatus.BAD_REQUEST, mensaje, req, null);
+    }
+
+    @ExceptionHandler(ValidacionException.class)
+    public ResponseEntity<ErrorResponse> validacionNegocio(ValidacionException ex, HttpServletRequest req) {
+        return construir(HttpStatus.BAD_REQUEST, ex.getMessage(), req, ex.getCampos());
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ErrorResponse> tipoParametro(MethodArgumentTypeMismatchException ex,
+                                                       HttpServletRequest req) {
         return construir(HttpStatus.BAD_REQUEST,
-                "No pudimos leer los datos enviados. Verifica que el formato y los tipos de dato sean correctos.",
+                "El valor '" + ex.getValue() + "' no es válido para el parámetro '" + ex.getName() + "'.",
                 req, null);
+    }
+
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ErrorResponse> parametroFaltante(MissingServletRequestParameterException ex,
+                                                           HttpServletRequest req) {
+        return construir(HttpStatus.BAD_REQUEST,
+                "Falta el parámetro obligatorio '" + ex.getParameterName() + "'.", req, null);
+    }
+
+    @ExceptionHandler(HandlerMethodValidationException.class)
+    public ResponseEntity<ErrorResponse> parametrosInvalidos(HandlerMethodValidationException ex,
+                                                             HttpServletRequest req) {
+        String detalle = ex.getAllErrors().stream()
+                .map(e -> e.getDefaultMessage())
+                .filter(m -> m != null && !m.isBlank())
+                .distinct()
+                .reduce((a, b) -> a + " " + b)
+                .orElse("Revisa los datos enviados.");
+        return construir(HttpStatus.BAD_REQUEST, detalle, req, null);
     }
 
     @ExceptionHandler(BadCredentialsException.class)
